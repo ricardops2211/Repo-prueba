@@ -7,7 +7,7 @@ on:
 
 jobs:
   ejecutar-reusable:
-    uses: orquestador-github/.github/workflows/orquestacion-cert.yml@reusbale-repo
+    uses: ricardops2211/orquestador-github/.github/workflows/orquestacion-cert.yml@reusbale-repo
     with:
       node-version: '18'
       entorno: 'producción'
