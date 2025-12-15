@@ -1,4 +1,4 @@
-name: Node CI
+name: Upload Artifact Even Without Node
 
 on: [push]
 
@@ -7,17 +7,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - run: npm install
-      - run: npm run build --if-present
+      # Este paso solo crea un archivo de ejemplo, sin npm
+      - name: Crear artefacto de prueba
+        run: |
+          mkdir -p output
+          echo "Hola, este es un artefacto de prueba" > output/hello.txt
 
       - name: Subir artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: dist-build
-          path: dist
+          name: prueba-artifact
+          path: output
+          if-no-files-found: warn
