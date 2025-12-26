@@ -1,4 +1,4 @@
-name: Docker CI (ubuntu-latest) - build, run, scan, push
+name: Docker CI 
 
 # ------------------------------------------------------------
 # on: Cuándo se ejecuta el workflow
@@ -6,13 +6,8 @@ name: Docker CI (ubuntu-latest) - build, run, scan, push
 on:
   # Se ejecuta cuando haces push a main/master
   push:
-    branches: ["main", "master"]
-    # Y también cuando pusheas tags tipo v1.2.3
-    tags: ["v*.*.*"]
-  # Se ejecuta cuando abres/actualizas PR hacia main/master
-  pull_request:
-    branches: ["main", "master"]
-  # Botón manual "Run workflow" en GitHub
+    branches: ["docker-image"]
+
   workflow_dispatch:
 
 # ------------------------------------------------------------
