@@ -1,0 +1,19 @@
+services:
+  java-ms:
+    # Construye desde el Dockerfile local
+    build: .
+    container_name: java-ms
+    environment:
+      - PORT=8080
+    expose:
+      - "8080" # Solo expuesto a la red interna de Compose
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    depends_on:
+      - java-ms
+    ports:
+      - "8080:80" # host:container => abre http://localhost:8080
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
