@@ -1,6 +1,7 @@
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpExchange;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -12,33 +13,56 @@ public class Main {
 
     HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
 
-    // Endpoint de salud típico para microservicios
-    server.createContext("/health", exchange ->
-        respondJson(exchange, 200, "{\"status\":\"UP\"}")
-    );
+    // /health
+    server.createContext("/health", exchange -> {
+      try {
+        respondJson(exchange, 200, "{\"status\":\"UP\"}");
+      } catch (IOException e) {
+        safeClose(exchange);
+      }
+    });
 
-    // Endpoint ejemplo
-    server.createContext("/api/hello", exchange ->
-        respondJson(exchange, 200, "{\"message\":\"Hola desde Java microservicio\"}")
-    );
+    // /api/hello
+    server.createContext("/api/hello", exchange -> {
+      try {
+        respondJson(exchange, 200, "{\"message\":\"Hola desde Java microservicio\"}");
+      } catch (IOException e) {
+        safeClose(exchange);
+      }
+    });
 
-    // Default
-    server.createContext("/", exchange ->
-        respondJson(exchange, 200, "{\"service\":\"java-ms\",\"endpoints\":[\"/health\",\"/api/hello\"]}")
-    );
+    // /
+    server.createContext("/", exchange -> {
+      try {
+        respondJson(exchange, 200, "{\"service\":\"java-ms\",\"endpoints\":[\"/health\",\"/api/hello\"]}");
+      } catch (IOException e) {
+        safeClose(exchange);
+      }
+    });
 
-    server.setExecutor(null); // usa executor por defecto
+    server.setExecutor(null);
     server.start();
 
     System.out.println("Java microservice running on port " + port);
   }
 
-  private static void respondJson(HttpExchange exchange, int status, String body) throws Exception {
+  // ✅ Ahora SOLO lanza IOException (lo que el handler sí permite manejar)
+  private static void respondJson(HttpExchange exchange, int status, String body) throws IOException {
     byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
     exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
     exchange.sendResponseHeaders(status, bytes.length);
     try (OutputStream os = exchange.getResponseBody()) {
       os.write(bytes);
     }
+  }
+
+  // Cierra seguro si algo falla antes de responder bien
+  private static void safeClose(HttpExchange exchange) {
+    try {
+      exchange.sendResponseHeaders(500, -1);
+    } catch (Exception ignored) {}
+    try {
+      exchange.close();
+    } catch (Exception ignored) {}
   }
 }
