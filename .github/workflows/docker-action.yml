@@ -2,9 +2,8 @@ name: Docker con microservicios en Java
 
 on:
   push:
-    branches: ["main", "master"]   # # corre cuando haces push a main/master
-  pull_request:
-    branches: ["main", "master"]   # # corre en PRs hacia main/master
+    branches: ["docker-image"]   # # corre cuando haces push a main/master
+
   workflow_dispatch:              # # botón manual para ejecutarlo
 
 jobs:
