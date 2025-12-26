@@ -1,206 +1,60 @@
-name: Docker CI 
+name: Docker con microservicios en Java
 
-# ------------------------------------------------------------
-# on: Cuándo se ejecuta el workflow
-# ------------------------------------------------------------
 on:
-  # Se ejecuta cuando haces push a main/master
   push:
-    branches: ["docker-image"]
-
-  workflow_dispatch:
-
-# ------------------------------------------------------------
-# concurrency: evita duplicados
-# - Si haces varios pushes seguidos, cancela el anterior y deja el último.
-# ------------------------------------------------------------
-concurrency:
-  group: docker-ci-${{ github.ref }}
-  cancel-in-progress: true
-
-# ------------------------------------------------------------
-# permissions: permisos mínimos recomendados
-# - packages:write para publicar a GHCR
-# - security-events:write para subir SARIF (Trivy) a Security tab
-# ------------------------------------------------------------
-permissions:
-  contents: read
-  packages: write
-  security-events: write
-
-# ------------------------------------------------------------
-# env: variables globales del workflow
-# ------------------------------------------------------------
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }} # ejemplo: owner/repo
-  # TAG base (sha completo); luego usaremos sha corto también con metadata-action
-  TAG_SHA: ${{ github.sha }}
+    branches: ["main", "master"]   # # corre cuando haces push a main/master
+  pull_request:
+    branches: ["main", "master"]   # # corre en PRs hacia main/master
+  workflow_dispatch:              # # botón manual para ejecutarlo
 
 jobs:
-  docker:
-    # ------------------------------------------------------------
-    # runs-on: define el runner
-    # ubuntu-latest = runner de GitHub (GitHub-hosted)
-    # ------------------------------------------------------------
-    runs-on: ubuntu-latest
+  build_run_test:
+    runs-on: ubuntu-latest         # # runner GitHub-hosted (de GitHub)
 
     steps:
-      # ------------------------------------------------------------
-      # Checkout: trae tu repo al runner
-      # ------------------------------------------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4  # # descarga tu código al runner
 
-      # ------------------------------------------------------------
-      # (Opcional demo) Si no existe demo-site/ en tu repo,
-      # creamos un HTML básico para que el Dockerfile tenga contenido.
-      # Si tu repo YA tiene demo-site/ o tu app real, puedes borrar este paso.
-      # ------------------------------------------------------------
-      - name: Create demo-site (only if missing)
-        shell: bash
+      - name: Show Docker/Compose versions
         run: |
-          set -euo pipefail
-          if [ ! -d "demo-site" ]; then
-            mkdir -p demo-site
-      
-            cat <<'EOF' > demo-site/index.html
-      <html>
-        <body>
-          <h1>OK ✅</h1>
-          <p>Build & run desde GitHub Actions.</p>
-        </body>
-      </html>
-      EOF
-      
-          fi
+          # # solo para verificar que docker y compose existen
+          docker version
+          docker compose version
 
-
-      # ------------------------------------------------------------
-      # docker/metadata-action:
-      # - Genera tags y labels automáticamente
-      # - “Método” clave para no hardcodear tags
-      # ------------------------------------------------------------
-      - name: Docker meta (tags/labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          # images: base del nombre de imagen
-          images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # tags: qué tags generar
-          # - sha corto (ej: sha-abc1234)
-          # - latest (solo en branch principal, lo controlaremos con push)
-          # - semver si viene un tag tipo v1.2.3
-          tags: |
-            type=sha,format=short,prefix=sha-
-            type=raw,value=latest
-            type=semver,pattern={{version}}
-          # labels: metadata OCI útil
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.repositoryUrl }}
-
-      # ------------------------------------------------------------
-      # Setup Buildx:
-      # - Habilita build rápido, cache, multi-arch, etc.
-      # ------------------------------------------------------------
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # ------------------------------------------------------------
-      # Login a GHCR:
-      # - Solo cuando NO es pull_request (por seguridad no se pushea desde PR)
-      # - Usa GITHUB_TOKEN (no necesitas usuario/clave extra)
-      # ------------------------------------------------------------
-      - name: Log in to GHCR (skip on PR)
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # ------------------------------------------------------------
-      # Build & (opcional) Push:
-      # - build-push-action construye la imagen
-      # - push true solo en push/tag (no PR)
-      # - cache-from/to: acelera builds posteriores
-      # ------------------------------------------------------------
-      - name: Build image (and push on non-PR)
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-
-          # push: true si NO es PR
-          push: ${{ github.event_name != 'pull_request' }}
-
-          # tags/labels generados por metadata-action
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-          # Cache en GitHub Actions (rápido)
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-          # Opcional: build args (si tu Dockerfile los usa)
-          build-args: |
-            BUILD_SHA=${{ github.sha }}
-
-      # ------------------------------------------------------------
-      # Run container + Smoke test:
-      # - Arranca el contenedor, expone puerto y verifica respuesta HTTP.
-      # - Esto valida que "corre" de verdad, no solo que build pasó.
-      # ------------------------------------------------------------
-      - name: Run container and smoke test
-        shell: bash
+      - name: Build and start services (compose)
         run: |
-          set -euo pipefail
+          # # construye la imagen java-ms y levanta java-ms + nginx en background
+          docker compose up -d --build
 
-          # Usamos el tag sha-corto (metadata-action lo genera)
-          # Nota: tomamos el PRIMER tag de la lista (normalmente sha-xxxxxxx)
-          IMAGE="$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)"
-          echo "Testing image: $IMAGE"
-
-          # Corre en background, mapea 8080(host) -> 8000(container)
-          CID=$(docker run -d --rm -p 8080:8000 "$IMAGE")
-          echo "Container ID: $CID"
-
-          # Espera hasta 20s a que responda HTTP
+      - name: Smoke test via Nginx (reintentos)
+        run: |
+          # # esperamos a que nginx/java estén listos y probamos /health y /api/hello
+          set -e
           for i in {1..20}; do
-            python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080', timeout=2).read()" >/dev/null 2>&1 && break
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then
+              echo "✅ /health OK"
+              break
+            fi
             sleep 1
           done
 
-          echo "✅ Smoke test OK"
-          docker logs "$CID" --tail 50 || true
-          docker stop "$CID"
+          echo "Response /health:"
+          curl -fsS http://localhost:8080/health
+          echo
 
-      # ------------------------------------------------------------
-      # Trivy scan (opcional pero recomendado):
-      # - Escanea vulnerabilidades de OS y librerías
-      # - Produce SARIF para Security tab
-      # - Lo hacemos solo en NO-PR (cuando hay push)
-      # ------------------------------------------------------------
-      - name: Trivy vulnerability scan (SARIF) - non PR
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          # Escaneamos el tag "latest" (o podrías usar sha-xxxx)
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          format: sarif
-          output: trivy-results.sarif
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
-          ignore-unfixed: true
+          echo "Response /api/hello:"
+          curl -fsS http://localhost:8080/api/hello
+          echo
 
-      # ------------------------------------------------------------
-      # Subir SARIF a GitHub Security (Code scanning alerts)
-      # ------------------------------------------------------------
-      - name: Upload SARIF to GitHub Security
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results.sarif
+      - name: Logs (if needed)
+        if: always()
+        run: |
+          # # imprime logs para debug aunque falle algo
+          docker compose ps
+          docker compose logs --no-color --tail=200
+
+      - name: Shutdown
+        if: always()
+        run: |
+          # # baja contenedores para no dejar basura en el runner
+          docker compose down
