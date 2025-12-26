@@ -63,15 +63,18 @@ jobs:
           set -euo pipefail
           if [ ! -d "demo-site" ]; then
             mkdir -p demo-site
-            cat > demo-site/index.html <<'EOF'
-            <html>
-              <body>
-                <h1>OK ✅</h1>
-                <p>Build & run desde GitHub Actions.</p>
-              </body>
-            </html>
-            EOF
+      
+            cat <<'EOF' > demo-site/index.html
+      <html>
+        <body>
+          <h1>OK ✅</h1>
+          <p>Build & run desde GitHub Actions.</p>
+        </body>
+      </html>
+      EOF
+      
           fi
+
 
       # ------------------------------------------------------------
       # docker/metadata-action:
