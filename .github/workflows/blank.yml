@@ -1,9 +1,9 @@
-name: CI/CD Docker Compose
+name: Actions-Docker_compose_lunes
 
 on:
   push:
     branches:
-      - main
+      - docker-ops
   pull_request:
 
 jobs:
