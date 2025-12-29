@@ -1,4 +1,4 @@
-name: Docker con microservicios en Javas
+name: Docker con microservicios en Java
 
 on:
   push:
